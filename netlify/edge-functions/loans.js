@@ -1,7 +1,4 @@
-import { getStore } from "@netlify/blobs";
-
 export default async (request, context) => {
-  const store = getStore({ name: "loans", consistency: "strong" });
   const url = new URL(request.url);
   const path = url.pathname.replace("/api/", "");
 
@@ -15,11 +12,13 @@ export default async (request, context) => {
     return new Response(null, { status: 204, headers: cors });
   }
 
+  const store = context.blobs.get("loans");
+
   if (request.method === "GET" && path === "loans") {
     try {
-      const { blobs } = await store.list();
+      const list = await store.list();
       const loans = await Promise.all(
-        blobs.map(async (b) => {
+        list.blobs.map(async (b) => {
           const data = await store.get(b.key, { type: "json" });
           return data;
         })
@@ -33,7 +32,7 @@ export default async (request, context) => {
   if (request.method === "POST" && path === "loans") {
     const loan = await request.json();
     if (!loan.id) loan.id = crypto.randomUUID();
-    await store.setJSON(loan.id, loan);
+    await store.set(loan.id, JSON.stringify(loan));
     return Response.json({ ok: true, id: loan.id }, { headers: cors });
   }
 
