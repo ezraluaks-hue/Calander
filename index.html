@@ -1,0 +1,892 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>Refi Pipeline Calendar — Ezra Lukas</title>
+<link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@300;400;500;600&family=DM+Mono:wght@400;500&family=Instrument+Serif:ital@0;1&display=swap" rel="stylesheet"/>
+<style>
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+:root{
+  --bg:#f7f6f2;--surface:#fff;--surface2:#f0efe9;--border:#e4e2d8;
+  --text:#1a1916;--text2:#6b6860;--text3:#9e9b93;
+  --green:#1a3a2a;--green-mid:#3d6b50;--green-light:#eaf1ec;
+  --blue:#1a2a3a;--blue-mid:#3d5070;--blue-light:#eaecf1;
+  --gold:#a07820;--gold-bg:#fdf8ec;--gold-border:#e8d48a;
+  --red:#8b2020;--red-light:#f8eaea;
+  --orange:#b85a00;--orange-light:#fef3e8;
+  --radius:8px;--radius-lg:14px;
+  --font:'DM Sans',sans-serif;--serif:'Instrument Serif',serif;--mono:'DM Mono',monospace;
+}
+body{font-family:var(--font);background:var(--bg);color:var(--text);min-height:100vh;font-size:15px}
+
+/* HEADER */
+.header{background:var(--green);padding:16px 28px;display:flex;align-items:center;justify-content:space-between;gap:16px;flex-wrap:wrap}
+.header-name{font-family:var(--serif);font-size:19px;color:#fff}
+.header-sub{font-size:11px;color:rgba(255,255,255,.45);letter-spacing:.04em;margin-top:2px}
+.header-right{display:flex;gap:10px;align-items:center;flex-wrap:wrap}
+.header-btn{font-family:var(--font);font-size:12px;font-weight:500;padding:7px 14px;border-radius:20px;border:1px solid rgba(255,255,255,.25);background:rgba(255,255,255,.1);color:#fff;cursor:pointer;transition:all .15s;letter-spacing:.02em}
+.header-btn:hover{background:rgba(255,255,255,.2)}
+.header-btn.primary{background:#fff;color:var(--green);border-color:#fff}
+.header-btn.primary:hover{background:#e8f0eb}
+
+/* LAYOUT */
+.app{display:grid;grid-template-columns:1fr 340px;gap:0;min-height:calc(100vh - 60px)}
+.cal-panel{padding:24px;overflow-y:auto}
+.side-panel{background:var(--surface);border-left:1px solid var(--border);padding:20px;overflow-y:auto;max-height:calc(100vh - 60px);position:sticky;top:0}
+
+/* CALENDAR NAV */
+.cal-nav{display:flex;align-items:center;justify-content:space-between;margin-bottom:20px}
+.cal-title{font-family:var(--serif);font-size:22px;color:var(--text)}
+.cal-nav-btns{display:flex;gap:6px}
+.nav-btn{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);padding:6px 12px;cursor:pointer;font-family:var(--font);font-size:13px;color:var(--text2);transition:all .15s}
+.nav-btn:hover{border-color:var(--green-mid);color:var(--green)}
+
+/* CALENDAR GRID */
+.cal-grid{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius-lg);overflow:hidden}
+.cal-days-header{display:grid;grid-template-columns:repeat(7,1fr);background:var(--green);padding:0}
+.cal-day-label{padding:10px 0;text-align:center;font-size:11px;font-weight:600;letter-spacing:.08em;text-transform:uppercase;color:rgba(255,255,255,.7)}
+.cal-weeks{display:flex;flex-direction:column}
+.cal-week{display:grid;grid-template-columns:repeat(7,1fr);border-bottom:1px solid var(--border)}
+.cal-week:last-child{border-bottom:none}
+.cal-cell{min-height:90px;padding:6px;border-right:1px solid var(--border);cursor:pointer;transition:background .1s;position:relative}
+.cal-cell:last-child{border-right:none}
+.cal-cell:hover{background:var(--surface2)}
+.cal-cell.other-month{background:var(--surface2)}
+.cal-cell.other-month .cell-num{color:var(--text3)}
+.cal-cell.today{background:var(--green-light)}
+.cal-cell.today .cell-num{background:var(--green);color:#fff;border-radius:50%;width:22px;height:22px;display:flex;align-items:center;justify-content:center;font-weight:600}
+.cal-cell.weekend{background:#fafaf8}
+.cal-cell.selected{outline:2px solid var(--green);outline-offset:-2px}
+.cell-num{font-size:12px;font-weight:500;color:var(--text2);margin-bottom:4px;width:22px;height:22px;display:flex;align-items:center;justify-content:center}
+.cell-events{display:flex;flex-direction:column;gap:2px}
+.cal-event{font-size:10px;padding:2px 5px;border-radius:3px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;font-weight:500;cursor:pointer}
+.cal-event.red{background:#fde8e8;color:#8b2020}
+.cal-event.orange{background:#fef0e0;color:#b85a00}
+.cal-event.green{background:#e8f0eb;color:#1a3a2a}
+.cal-event.blue{background:#e8ecf0;color:#1a2a3a}
+.cal-event.gold{background:#fdf8ec;color:#a07820}
+.cal-event.purple{background:#f0e8f8;color:#5a1a8a}
+.cal-event.teal{background:#e8f5f5;color:#1a5a5a}
+.more-events{font-size:10px;color:var(--text3);padding:1px 4px;cursor:pointer}
+
+/* SECTION LABELS */
+.section-label{font-size:10.5px;font-weight:600;letter-spacing:.1em;text-transform:uppercase;color:var(--text3);margin-bottom:12px;margin-top:20px}
+.section-label:first-child{margin-top:0}
+
+/* LOANS LIST */
+.loan-list{display:flex;flex-direction:column;gap:8px;margin-bottom:16px}
+.loan-card{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius-lg);padding:14px 16px;cursor:pointer;transition:all .15s;position:relative}
+.loan-card:hover{border-color:var(--green-mid);box-shadow:0 2px 8px rgba(0,0,0,.06)}
+.loan-card.active{border-color:var(--green);box-shadow:0 0 0 2px var(--green-light)}
+.loan-card-top{display:flex;align-items:center;gap:8px;margin-bottom:6px}
+.loan-name{font-weight:600;font-size:14px;flex:1}
+.loan-status{font-size:10px;font-weight:600;letter-spacing:.06em;text-transform:uppercase;padding:3px 8px;border-radius:10px}
+.status-app{background:#e8ecf0;color:var(--blue)}
+.status-uwreview{background:#fef0e0;color:var(--orange)}
+.status-stp{background:#f0e8f8;color:#5a1a8a}
+.status-awc{background:var(--gold-bg);color:var(--gold)}
+.status-ctc{background:var(--green-light);color:var(--green)}
+.status-scheduled{background:#e8f5f5;color:#1a5a5a}
+.status-closed{background:var(--surface2);color:var(--text2)}
+.status-funded{background:var(--green-light);color:var(--green-mid)}
+.loan-sub{font-size:12px;color:var(--text3)}
+.loan-alerts{display:flex;flex-direction:column;gap:3px;margin-top:6px}
+.alert-pill{font-size:10.5px;padding:2px 8px;border-radius:4px;display:inline-flex;align-items:center;gap:4px}
+.alert-pill.red{background:var(--red-light);color:var(--red)}
+.alert-pill.orange{background:var(--orange-light);color:var(--orange)}
+.alert-pill.gold{background:var(--gold-bg);color:var(--gold)}
+.loan-card-actions{position:absolute;top:10px;right:10px;display:none;gap:4px}
+.loan-card:hover .loan-card-actions{display:flex}
+.icon-btn{background:none;border:1px solid var(--border);border-radius:5px;padding:3px 6px;cursor:pointer;font-size:11px;color:var(--text3);transition:all .15s}
+.icon-btn:hover{border-color:var(--red);color:var(--red)}
+
+/* SIDE PANEL */
+.day-detail{background:var(--gold-bg);border:1px solid var(--gold-border);border-radius:var(--radius-lg);padding:14px 16px;margin-bottom:16px;display:none}
+.day-detail.visible{display:block}
+.day-detail-title{font-weight:600;font-size:14px;margin-bottom:10px;color:var(--text)}
+.day-event-item{display:flex;align-items:flex-start;gap:8px;padding:5px 0;border-bottom:1px solid var(--gold-border);font-size:12.5px}
+.day-event-item:last-child{border-bottom:none}
+.day-event-dot{width:8px;height:8px;border-radius:50%;flex-shrink:0;margin-top:4px}
+
+/* COUNTDOWN STRIP */
+.countdown-strip{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:16px}
+.countdown-card{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);padding:10px 12px;text-align:center}
+.countdown-card.urgent{background:var(--red-light);border-color:#f0b0b0}
+.countdown-card.warn{background:var(--orange-light);border-color:#f0c890}
+.countdown-card.ok{background:var(--green-light);border-color:#b0d0b8}
+.countdown-num{font-family:var(--serif);font-size:24px;line-height:1;color:var(--text)}
+.countdown-card.urgent .countdown-num{color:var(--red)}
+.countdown-card.warn .countdown-num{color:var(--orange)}
+.countdown-card.ok .countdown-num{color:var(--green-mid)}
+.countdown-label{font-size:10px;font-weight:600;letter-spacing:.06em;text-transform:uppercase;color:var(--text3);margin-top:3px}
+
+/* MODAL */
+.modal-overlay{position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:100;display:none;align-items:center;justify-content:center;padding:20px}
+.modal-overlay.open{display:flex}
+.modal{background:var(--surface);border-radius:var(--radius-lg);max-width:600px;width:100%;max-height:90vh;overflow-y:auto;box-shadow:0 20px 60px rgba(0,0,0,.2)}
+.modal-header{background:var(--green);padding:16px 20px;display:flex;align-items:center;justify-content:space-between;border-radius:var(--radius-lg) var(--radius-lg) 0 0}
+.modal-title{font-family:var(--serif);font-size:18px;color:#fff}
+.modal-close{background:none;border:none;color:rgba(255,255,255,.7);font-size:22px;cursor:pointer;line-height:1;padding:0 4px}
+.modal-close:hover{color:#fff}
+.modal-body{padding:24px}
+.modal-section{margin-bottom:20px}
+.modal-section-title{font-size:10.5px;font-weight:600;letter-spacing:.1em;text-transform:uppercase;color:var(--text3);margin-bottom:12px;padding-bottom:6px;border-bottom:1px solid var(--border)}
+.form-grid{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+.form-grid.cols-1{grid-template-columns:1fr}
+.field{display:flex;flex-direction:column;gap:5px}
+.field label{font-size:11.5px;font-weight:500;color:var(--text2)}
+.field input,.field select,.field textarea{padding:8px 11px;border-radius:var(--radius);border:1px solid var(--border);font-family:var(--font);font-size:13.5px;color:var(--text);outline:none;transition:border .15s;width:100%;background:var(--surface)}
+.field input:focus,.field select:focus,.field textarea:focus{border-color:var(--green-mid)}
+.field textarea{resize:vertical;min-height:60px;line-height:1.5}
+.field select{appearance:none;background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%236b6860' stroke-width='2'%3E%3Cpath d='m6 9 6 6 6-6'/%3E%3C/svg%3E");background-repeat:no-repeat;background-position:right 10px center;padding-right:28px;cursor:pointer}
+.field .hint{font-size:11px;color:var(--text3);margin-top:2px}
+.auto-badge{font-size:10px;background:var(--green-light);color:var(--green-mid);padding:2px 6px;border-radius:4px;margin-left:6px;font-weight:500}
+.modal-footer{padding:16px 24px;border-top:1px solid var(--border);display:flex;justify-content:flex-end;gap:10px}
+.btn{font-family:var(--font);font-size:13.5px;font-weight:500;padding:9px 18px;border-radius:var(--radius);border:1px solid var(--border);background:var(--surface2);color:var(--text2);cursor:pointer;transition:all .15s}
+.btn:hover{border-color:var(--border2);color:var(--text)}
+.btn.primary{background:var(--green);color:#fff;border-color:var(--green)}
+.btn.primary:hover{background:var(--green-mid)}
+.btn.danger{border-color:var(--red);color:var(--red)}
+.btn.danger:hover{background:var(--red-light)}
+
+/* FILE DETAIL VIEW */
+.file-detail{display:none}
+.file-detail.visible{display:block}
+.file-dates-grid{display:flex;flex-direction:column;gap:6px}
+.date-row{display:flex;align-items:center;justify-content:space-between;padding:8px 12px;background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);font-size:13px}
+.date-row.overdue{background:var(--red-light);border-color:#f0b0b0}
+.date-row.urgent{background:var(--orange-light);border-color:#f0c890}
+.date-row.done{background:var(--surface2);opacity:.7}
+.date-row-label{color:var(--text2);font-size:12px;flex:1}
+.date-row-val{font-family:var(--mono);font-size:12px;font-weight:500;color:var(--text)}
+.date-row-badge{font-size:10px;padding:2px 6px;border-radius:4px;font-weight:600;margin-left:8px;flex-shrink:0}
+.badge-red{background:var(--red-light);color:var(--red)}
+.badge-orange{background:var(--orange-light);color:var(--orange)}
+.badge-green{background:var(--green-light);color:var(--green-mid)}
+.badge-auto{background:var(--blue-light);color:var(--blue-mid)}
+
+/* LOADING */
+.loading-msg{text-align:center;padding:40px 20px;color:var(--text3);font-size:13px}
+.empty-msg{text-align:center;padding:30px 16px;color:var(--text3);font-size:13px;line-height:1.6}
+
+/* LEGEND */
+.legend{display:flex;flex-wrap:wrap;gap:8px;margin-bottom:20px}
+.legend-item{display:flex;align-items:center;gap:5px;font-size:11px;color:var(--text2)}
+.legend-dot{width:8px;height:8px;border-radius:2px;flex-shrink:0}
+
+@media(max-width:900px){
+  .app{grid-template-columns:1fr}
+  .side-panel{border-left:none;border-top:1px solid var(--border);position:static;max-height:none}
+}
+@media(max-width:600px){
+  .form-grid{grid-template-columns:1fr}
+  .header{padding:12px 16px}
+  .cal-panel{padding:16px}
+}
+</style>
+</head>
+<body>
+
+<div class="header">
+  <div>
+    <div class="header-name">Ezra Lukas</div>
+    <div class="header-sub">Refi Pipeline Calendar · Independence Home Loans</div>
+  </div>
+  <div class="header-right">
+    <button class="header-btn primary" onclick="openModal()">+ Add Loan File</button>
+    <button class="header-btn" onclick="refreshLoans()">↻ Refresh</button>
+  </div>
+</div>
+
+<div class="app">
+
+  <!-- CALENDAR PANEL -->
+  <div class="cal-panel">
+    <div class="cal-nav">
+      <div class="cal-title" id="cal-title">June 2026</div>
+      <div style="display:flex;align-items:center;gap:10px">
+        <div class="legend">
+          <div class="legend-item"><div class="legend-dot" style="background:#8b2020"></div>Overdue</div>
+          <div class="legend-item"><div class="legend-dot" style="background:#b85a00"></div>Due soon</div>
+          <div class="legend-item"><div class="legend-dot" style="background:#3d6b50"></div>On track</div>
+          <div class="legend-item"><div class="legend-dot" style="background:#3d5070"></div>Milestone</div>
+        </div>
+        <div class="cal-nav-btns">
+          <button class="nav-btn" onclick="changeMonth(-1)">← Prev</button>
+          <button class="nav-btn" onclick="changeMonth(0)">Today</button>
+          <button class="nav-btn" onclick="changeMonth(1)">Next →</button>
+        </div>
+      </div>
+    </div>
+
+    <div class="cal-grid" id="cal-grid"></div>
+
+    <!-- MONTH DEADLINES -->
+    <div class="section-label" style="margin-top:20px">This Month's Refi Deadlines</div>
+    <div id="month-deadlines" style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:10px"></div>
+  </div>
+
+  <!-- SIDE PANEL -->
+  <div class="side-panel">
+    <!-- DAY DETAIL -->
+    <div class="day-detail" id="day-detail">
+      <div class="day-detail-title" id="day-detail-title">Select a day</div>
+      <div id="day-events-list"></div>
+    </div>
+
+    <div class="section-label">Active Files <span id="loan-count" style="font-weight:400;text-transform:none;letter-spacing:0;color:var(--text3);font-size:11px"></span></div>
+    <div class="loan-list" id="loan-list">
+      <div class="loading-msg">Loading files...</div>
+    </div>
+
+    <div class="file-detail" id="file-detail"></div>
+  </div>
+</div>
+
+<!-- MODAL -->
+<div class="modal-overlay" id="modal">
+  <div class="modal">
+    <div class="modal-header">
+      <div class="modal-title" id="modal-title">Add Loan File</div>
+      <button class="modal-close" onclick="closeModal()">×</button>
+    </div>
+    <div class="modal-body">
+
+      <div class="modal-section">
+        <div class="modal-section-title">Borrower & Loan Info</div>
+        <div class="form-grid">
+          <div class="field"><label>Borrower Last Name</label><input id="f-name" type="text" placeholder="e.g. Martinez"/></div>
+          <div class="field"><label>Loan Number</label><input id="f-loannum" type="text" placeholder="e.g. 2025-0042"/></div>
+          <div class="field"><label>State</label><input id="f-state" type="text" placeholder="e.g. AZ" maxlength="2"/></div>
+          <div class="field">
+            <label>Status</label>
+            <select id="f-status">
+              <option value="app">Application</option>
+              <option value="uwreview">UW Review</option>
+              <option value="stp">STP</option>
+              <option value="awc">AWC</option>
+              <option value="ctc">CTC</option>
+              <option value="scheduled">Scheduled</option>
+              <option value="closed">Closed</option>
+              <option value="funded">Funded</option>
+            </select>
+          </div>
+        </div>
+        <div class="form-grid cols-1" style="margin-top:10px">
+          <div class="field"><label>Notes</label><textarea id="f-notes" placeholder="Condition notes, anything urgent..."></textarea></div>
+        </div>
+      </div>
+
+      <div class="modal-section">
+        <div class="modal-section-title">Key Dates — Enter what you know, rest auto-calculates <span class="auto-badge">AUTO</span></div>
+        <div class="form-grid">
+          <div class="field"><label>Application Date</label><input id="f-app-date" type="date" oninput="autoCalc()"/><span class="hint">LE due within 3 business days</span></div>
+          <div class="field"><label>LE Sent Date</label><input id="f-le-sent" type="date" oninput="autoCalc()"/><span class="hint">Expires 3 business days later</span></div>
+          <div class="field"><label>LE Expiration <span class="auto-badge">AUTO</span></label><input id="f-le-exp" type="date" readonly style="background:var(--surface2);color:var(--text3)"/></div>
+          <div class="field"><label>LE Deadline <span class="auto-badge">AUTO</span></label><input id="f-le-deadline" type="date" readonly style="background:var(--surface2);color:var(--text3)"/></div>
+          <div class="field"><label>STP Date</label><input id="f-stp" type="date" oninput="autoCalc()"/><span class="hint">Typical AWC ~2 days later</span></div>
+          <div class="field"><label>Est. AWC Date <span class="auto-badge">AUTO</span></label><input id="f-awc-est" type="date" oninput="autoCalc()"/></div>
+          <div class="field"><label>Actual AWC Date</label><input id="f-awc" type="date" oninput="autoCalc()"/><span class="hint">Typical CTC ~15 days later</span></div>
+          <div class="field"><label>Est. CTC Date <span class="auto-badge">AUTO</span></label><input id="f-ctc-est" type="date" oninput="autoCalc()"/></div>
+          <div class="field"><label>Actual CTC Date</label><input id="f-ctc" type="date" oninput="autoCalc()"/><span class="hint">Closing ~48hrs later</span></div>
+          <div class="field"><label>Lock Expiration</label><input id="f-lock-exp" type="date"/></div>
+        </div>
+      </div>
+
+      <div class="modal-section">
+        <div class="modal-section-title">Closing & Funding</div>
+        <div class="form-grid">
+          <div class="field"><label>CD Signed Date</label><input id="f-cd-signed" type="date"/></div>
+          <div class="field"><label>CD Signing Deadline <span class="auto-badge">AUTO</span></label><input id="f-cd-deadline" type="date" readonly style="background:var(--surface2);color:var(--text3)"/></div>
+          <div class="field"><label>Est. Closing Date <span class="auto-badge">AUTO</span></label><input id="f-close-est" type="date" oninput="autoCalc()"/></div>
+          <div class="field"><label>Actual Closing Date</label><input id="f-close-actual" type="date" oninput="autoCalc()"/></div>
+          <div class="field"><label>Est. Funding Date <span class="auto-badge">AUTO</span></label><input id="f-fund-est" type="date" readonly style="background:var(--surface2);color:var(--text3)"/></div>
+          <div class="field"><label>Actual Funding Date</label><input id="f-fund-actual" type="date"/></div>
+          <div class="field"><label>Last Day to Close (Month)</label><input id="f-last-day" type="date"/><span class="hint">TRID end-of-month cutoff</span></div>
+        </div>
+      </div>
+
+      <div class="modal-section">
+        <div class="modal-section-title">Payoff & Title</div>
+        <div class="form-grid">
+          <div class="field"><label>Payoff Requested</label><input id="f-payoff-req" type="date"/></div>
+          <div class="field"><label>Payoff Expires</label><input id="f-payoff-exp" type="date"/></div>
+          <div class="field"><label>Title Ordered</label><input id="f-title-ordered" type="date"/></div>
+          <div class="field"><label>Title Received</label><input id="f-title-rcvd" type="date"/></div>
+        </div>
+      </div>
+
+      <div class="modal-section">
+        <div class="modal-section-title">Appraisal & Inspection</div>
+        <div class="form-grid">
+          <div class="field"><label>Appraisal Ordered</label><input id="f-appr-ordered" type="date"/></div>
+          <div class="field"><label>Appraisal Date</label><input id="f-appr-date" type="date"/></div>
+          <div class="field"><label>Appraisal Report Due</label><input id="f-appr-due" type="date"/></div>
+          <div class="field"><label>Appraisal Received</label><input id="f-appr-rcvd" type="date"/></div>
+          <div class="field"><label>WDIIR Inspection Date</label><input id="f-wdiir" type="date"/></div>
+          <div class="field"><label>WDIIR Report Due</label><input id="f-wdiir-due" type="date"/></div>
+        </div>
+      </div>
+
+      <div class="modal-section">
+        <div class="modal-section-title">Insurance & HOI</div>
+        <div class="form-grid">
+          <div class="field"><label>HOI Confirmed</label><input id="f-hoi" type="date"/></div>
+          <div class="field"><label>Flood Cert Ordered</label><input id="f-flood-ordered" type="date"/></div>
+          <div class="field"><label>Flood Cert Received</label><input id="f-flood-rcvd" type="date"/></div>
+          <div class="field"><label>Survey Ordered</label><input id="f-survey-ordered" type="date"/></div>
+        </div>
+      </div>
+
+    </div>
+    <div class="modal-footer">
+      <button class="btn" onclick="closeModal()">Cancel</button>
+      <button class="btn primary" onclick="saveLoan()">Save File</button>
+    </div>
+  </div>
+</div>
+
+<script>
+// ─── DATE UTILS ───────────────────────────────────────────────────────────────
+const FEDERAL_HOLIDAYS_2025 = ['2025-01-01','2025-01-20','2025-02-17','2025-05-26','2025-06-19','2025-07-04','2025-09-01','2025-10-13','2025-11-11','2025-11-27','2025-12-25'];
+const FEDERAL_HOLIDAYS_2026 = ['2026-01-01','2026-01-19','2026-02-16','2026-05-25','2026-06-19','2026-07-04','2026-09-07','2026-10-12','2026-11-11','2026-11-26','2026-12-25'];
+const HOLIDAYS = new Set([...FEDERAL_HOLIDAYS_2025, ...FEDERAL_HOLIDAYS_2026]);
+
+function isBusinessDay(d) {
+  const dow = d.getDay();
+  const iso = toISO(d);
+  return dow !== 0 && dow !== 6 && !HOLIDAYS.has(iso);
+}
+
+function isRescissionDay(d) {
+  // Mon-Fri count, Sat-Sun do not, federal holidays do not
+  const dow = d.getDay();
+  const iso = toISO(d);
+  return dow !== 0 && dow !== 6 && !HOLIDAYS.has(iso);
+}
+
+function addBusinessDays(dateStr, days) {
+  if (!dateStr) return '';
+  let d = parseDate(dateStr);
+  let added = 0;
+  while (added < days) {
+    d = new Date(d.getTime() + 86400000);
+    if (isBusinessDay(d)) added++;
+  }
+  return toISO(d);
+}
+
+function addRescissionDays(dateStr, days) {
+  // Rescission: Mon-Fri count, Sat/Sun/holidays do not
+  if (!dateStr) return '';
+  let d = parseDate(dateStr);
+  let added = 0;
+  while (added < days) {
+    d = new Date(d.getTime() + 86400000);
+    if (isRescissionDay(d)) added++;
+  }
+  return toISO(d);
+}
+
+function addCalDays(dateStr, days) {
+  if (!dateStr) return '';
+  const d = parseDate(dateStr);
+  d.setDate(d.getDate() + days);
+  return toISO(d);
+}
+
+function toISO(d) {
+  return d.toISOString().split('T')[0];
+}
+
+function parseDate(str) {
+  // Parse as local date to avoid timezone offset issues
+  const [y, m, day] = str.split('-').map(Number);
+  return new Date(y, m - 1, day);
+}
+
+function fmtDate(str) {
+  if (!str) return '—';
+  const d = parseDate(str);
+  return d.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+}
+
+function daysDiff(dateStr) {
+  if (!dateStr) return null;
+  const today = new Date(); today.setHours(0,0,0,0);
+  const d = parseDate(dateStr);
+  return Math.round((d - today) / 86400000);
+}
+
+function lastBusinessDayOfMonth(year, month) {
+  // Last calendar day of month, then back up if weekend/holiday
+  let d = new Date(year, month + 1, 0); // last day
+  while (!isBusinessDay(d)) {
+    d.setDate(d.getDate() - 1);
+  }
+  return toISO(d);
+}
+
+// ─── AUTO CALC ────────────────────────────────────────────────────────────────
+function autoCalc() {
+  const appDate   = document.getElementById('f-app-date').value;
+  const leSent    = document.getElementById('f-le-sent').value;
+  const stpDate   = document.getElementById('f-stp').value;
+  const awcActual = document.getElementById('f-awc').value;
+  const awcEst    = document.getElementById('f-awc-est').value;
+  const ctcActual = document.getElementById('f-ctc').value;
+  const ctcEst    = document.getElementById('f-ctc-est').value;
+  const closeEst  = document.getElementById('f-close-est').value;
+  const closeActual = document.getElementById('f-close-actual').value;
+
+  // LE deadline (3 biz days from app)
+  if (appDate) document.getElementById('f-le-deadline').value = addBusinessDays(appDate, 3);
+
+  // LE expiration (3 biz days from LE sent)
+  if (leSent) document.getElementById('f-le-exp').value = addBusinessDays(leSent, 3);
+
+  // Est AWC (2 cal days from STP)
+  if (stpDate && !document.getElementById('f-awc-est').value) {
+    document.getElementById('f-awc-est').value = addCalDays(stpDate, 2);
+  }
+
+  // Est CTC (15 cal days from AWC actual, else AWC est)
+  const awcRef = awcActual || awcEst;
+  if (awcRef) {
+    const estCTC = addCalDays(awcRef, 15);
+    if (!document.getElementById('f-ctc-est').value) document.getElementById('f-ctc-est').value = estCTC;
+  }
+
+  // Est close (2 cal days from CTC actual, else CTC est)
+  const ctcRef = ctcActual || (document.getElementById('f-ctc-est').value);
+  if (ctcRef) {
+    const estClose = addCalDays(ctcRef, 2);
+    if (!closeEst) document.getElementById('f-close-est').value = estClose;
+  }
+
+  // Funding date — 3 rescission days from close (actual or est)
+  const closeRef = closeActual || closeEst || document.getElementById('f-close-est').value;
+  if (closeRef) {
+    const funding = addRescissionDays(closeRef, 3);
+    document.getElementById('f-fund-est').value = funding;
+    // CD signing deadline — 3 business days BEFORE closing
+    const cdDeadline = addBusinessDays(closeRef, -3);
+    // Actually need to subtract — let's do it properly
+    let cd = parseDate(closeRef);
+    let subtracted = 0;
+    while (subtracted < 3) {
+      cd = new Date(cd.getTime() - 86400000);
+      if (isBusinessDay(cd)) subtracted++;
+    }
+    document.getElementById('f-cd-deadline').value = toISO(cd);
+  }
+}
+
+// ─── STATE ────────────────────────────────────────────────────────────────────
+let loans = [];
+let currentYear = new Date().getFullYear();
+let currentMonth = new Date().getMonth();
+let selectedDay = null;
+let editingId = null;
+
+// ─── API ──────────────────────────────────────────────────────────────────────
+async function apiGet() {
+  const r = await fetch('/api/loans'); return r.json();
+}
+async function apiSave(loan) {
+  await fetch('/api/loans', { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify(loan) });
+}
+async function apiDelete(id) {
+  await fetch(`/api/loans/${id}`, { method:'DELETE' });
+}
+
+async function refreshLoans() {
+  document.getElementById('loan-list').innerHTML = '<div class="loading-msg">Loading...</div>';
+  try { loans = await apiGet(); } catch { loans = []; }
+  renderAll();
+}
+
+// ─── RENDER ───────────────────────────────────────────────────────────────────
+function renderAll() {
+  renderCalendar();
+  renderLoanList();
+  renderMonthDeadlines();
+}
+
+const EVENT_TYPES = [
+  { key:'f-le-deadline',   label:'LE Due',           color:'orange', priority:1 },
+  { key:'f-le-exp',        label:'LE Expires',       color:'orange', priority:1 },
+  { key:'f-lock-exp',      label:'Lock Expires',     color:'red',    priority:0 },
+  { key:'f-payoff-exp',    label:'Payoff Expires',   color:'red',    priority:0 },
+  { key:'f-awc',           label:'AWC',              color:'gold',   priority:2 },
+  { key:'f-awc-est',       label:'Est AWC',          color:'gold',   priority:3 },
+  { key:'f-ctc',           label:'CTC',              color:'green',  priority:2 },
+  { key:'f-ctc-est',       label:'Est CTC',          color:'green',  priority:3 },
+  { key:'f-cd-deadline',   label:'CD Deadline',      color:'orange', priority:1 },
+  { key:'f-cd-signed',     label:'CD Signed',        color:'blue',   priority:2 },
+  { key:'f-close-est',     label:'Est Close',        color:'teal',   priority:2 },
+  { key:'f-close-actual',  label:'Closed',           color:'green',  priority:2 },
+  { key:'f-fund-est',      label:'Est Fund',         color:'purple', priority:2 },
+  { key:'f-fund-actual',   label:'Funded',           color:'green',  priority:1 },
+  { key:'f-last-day',      label:'Last Day Close',   color:'red',    priority:0 },
+  { key:'f-appr-date',     label:'Appraisal',        color:'blue',   priority:2 },
+  { key:'f-appr-due',      label:'Appr Report Due',  color:'orange', priority:1 },
+  { key:'f-wdiir',         label:'WDIIR Inspection', color:'blue',   priority:2 },
+  { key:'f-wdiir-due',     label:'WDIIR Report Due', color:'orange', priority:1 },
+  { key:'f-payoff-req',    label:'Payoff Req\'d',    color:'blue',   priority:3 },
+  { key:'f-title-ordered', label:'Title Ordered',    color:'blue',   priority:3 },
+  { key:'f-title-rcvd',    label:'Title Received',   color:'blue',   priority:2 },
+];
+
+function getEventColor(type, dateStr) {
+  if (!dateStr) return type.color;
+  const diff = daysDiff(dateStr);
+  if (['f-le-deadline','f-le-exp','f-lock-exp','f-payoff-exp','f-cd-deadline','f-appr-due','f-wdiir-due','f-last-day'].includes(type.key)) {
+    if (diff < 0) return 'red';
+    if (diff <= 3) return 'orange';
+  }
+  return type.color;
+}
+
+function buildEventMap() {
+  const map = {};
+  loans.forEach(loan => {
+    EVENT_TYPES.forEach(et => {
+      const dateStr = loan[et.key];
+      if (!dateStr) return;
+      if (!map[dateStr]) map[dateStr] = [];
+      map[dateStr].push({ loan, type: et, dateStr });
+    });
+  });
+  return map;
+}
+
+function renderCalendar() {
+  const eventMap = buildEventMap();
+  const today = new Date(); today.setHours(0,0,0,0);
+  const firstDay = new Date(currentYear, currentMonth, 1);
+  const lastDay = new Date(currentYear, currentMonth + 1, 0);
+
+  document.getElementById('cal-title').textContent = firstDay.toLocaleDateString('en-US', { month:'long', year:'numeric' });
+
+  let html = `<div class="cal-days-header">`;
+  ['Sun','Mon','Tue','Wed','Thu','Fri','Sat'].forEach(d => html += `<div class="cal-day-label">${d}</div>`);
+  html += `</div><div class="cal-weeks">`;
+
+  let d = new Date(firstDay);
+  d.setDate(d.getDate() - d.getDay());
+
+  while (d <= lastDay || d.getDay() !== 0) {
+    if (d.getDay() === 0) html += `<div class="cal-week">`;
+    const iso = toISO(d);
+    const isToday = d.getTime() === today.getTime();
+    const isOther = d.getMonth() !== currentMonth;
+    const isWknd = d.getDay() === 0 || d.getDay() === 6;
+    const isSelected = iso === selectedDay;
+    const events = eventMap[iso] || [];
+    const cls = ['cal-cell', isOther?'other-month':'', isToday?'today':'', isWknd&&!isToday?'weekend':'', isSelected?'selected':''].filter(Boolean).join(' ');
+
+    html += `<div class="${cls}" onclick="selectDay('${iso}')">`;
+    html += `<div class="cell-num">${d.getDate()}</div>`;
+    html += `<div class="cell-events">`;
+    const show = events.slice(0, 3);
+    show.forEach(ev => {
+      const color = getEventColor(ev.type, ev.dateStr);
+      html += `<div class="cal-event ${color}" title="${ev.loan['f-name']} · ${ev.type.label}">${ev.loan['f-name'] || '?'}: ${ev.type.label}</div>`;
+    });
+    if (events.length > 3) html += `<div class="more-events">+${events.length - 3} more</div>`;
+    html += `</div></div>`;
+
+    if (d.getDay() === 6) html += `</div>`;
+    d = new Date(d.getTime() + 86400000);
+  }
+  html += `</div>`;
+  document.getElementById('cal-grid').innerHTML = html;
+}
+
+function selectDay(iso) {
+  selectedDay = iso;
+  renderCalendar();
+  showDayDetail(iso);
+}
+
+function showDayDetail(iso) {
+  const eventMap = buildEventMap();
+  const events = eventMap[iso] || [];
+  const detail = document.getElementById('day-detail');
+  const title = document.getElementById('day-detail-title');
+  const list = document.getElementById('day-events-list');
+
+  const d = parseDate(iso);
+  title.textContent = d.toLocaleDateString('en-US', { weekday:'long', month:'long', day:'numeric' });
+
+  if (events.length === 0) {
+    list.innerHTML = '<div style="font-size:12.5px;color:var(--text3);padding:6px 0">No events this day</div>';
+  } else {
+    list.innerHTML = events.map(ev => {
+      const color = getEventColor(ev.type, ev.dateStr);
+      const colorMap = {red:'#8b2020',orange:'#b85a00',green:'#3d6b50',blue:'#3d5070',gold:'#a07820',purple:'#5a1a8a',teal:'#1a5a5a'};
+      return `<div class="day-event-item">
+        <div class="day-event-dot" style="background:${colorMap[color]||'#888'}"></div>
+        <div><strong>${ev.loan['f-name'] || 'Unnamed'}</strong><br><span style="color:var(--text3)">${ev.type.label}</span></div>
+      </div>`;
+    }).join('');
+  }
+  detail.classList.add('visible');
+}
+
+function renderLoanList() {
+  const list = document.getElementById('loan-list');
+  document.getElementById('loan-count').textContent = `(${loans.length})`;
+
+  if (loans.length === 0) {
+    list.innerHTML = '<div class="empty-msg">No active files.<br>Click <strong>+ Add Loan File</strong> to get started.</div>';
+    return;
+  }
+
+  const statusOrder = ['app','uwreview','stp','awc','ctc','scheduled','closed','funded'];
+  const sorted = [...loans].sort((a,b) => statusOrder.indexOf(a['f-status']) - statusOrder.indexOf(b['f-status']));
+
+  list.innerHTML = sorted.map(loan => {
+    const alerts = getAlerts(loan);
+    const alertsHTML = alerts.slice(0,2).map(a => `<div class="alert-pill ${a.cls}">⚠ ${a.msg}</div>`).join('');
+    return `<div class="loan-card" id="lc-${loan.id}" onclick="selectLoan('${loan.id}')">
+      <div class="loan-card-actions">
+        <button class="icon-btn" onclick="event.stopPropagation();editLoan('${loan.id}')">✎</button>
+        <button class="icon-btn" onclick="event.stopPropagation();deleteLoan('${loan.id}')">✕</button>
+      </div>
+      <div class="loan-card-top">
+        <div class="loan-name">${loan['f-name'] || 'Unnamed'}</div>
+        <div class="loan-status status-${loan['f-status']}">${statusLabel(loan['f-status'])}</div>
+      </div>
+      <div class="loan-sub">${loan['f-loannum'] || ''} ${loan['f-state'] ? '· '+loan['f-state'] : ''}</div>
+      ${alertsHTML ? `<div class="loan-alerts">${alertsHTML}</div>` : ''}
+    </div>`;
+  }).join('');
+}
+
+function getAlerts(loan) {
+  const alerts = [];
+  const today = new Date(); today.setHours(0,0,0,0);
+
+  const checks = [
+    { key:'f-lock-exp',    label:'Lock expires',    urgDays:7,  overDays:0 },
+    { key:'f-payoff-exp',  label:'Payoff expires',  urgDays:5,  overDays:0 },
+    { key:'f-le-deadline', label:'LE due',           urgDays:1,  overDays:-1 },
+    { key:'f-cd-deadline', label:'CD deadline',      urgDays:2,  overDays:-1 },
+    { key:'f-appr-due',    label:'Appr report due',  urgDays:2,  overDays:-1 },
+    { key:'f-last-day',    label:'Last day to close',urgDays:5,  overDays:-1 },
+  ];
+
+  checks.forEach(c => {
+    const val = loan[c.key];
+    if (!val) return;
+    const diff = daysDiff(val);
+    if (diff < 0) alerts.push({ msg:`${c.label} overdue`, cls:'red' });
+    else if (diff <= c.urgDays) alerts.push({ msg:`${c.label} in ${diff}d`, cls: diff <= 1 ? 'red' : 'orange' });
+  });
+
+  return alerts;
+}
+
+function statusLabel(s) {
+  const m = {app:'Application',uwreview:'UW Review',stp:'STP',awc:'AWC',ctc:'CTC',scheduled:'Scheduled',closed:'Closed',funded:'Funded'};
+  return m[s] || s;
+}
+
+function renderMonthDeadlines() {
+  const today = new Date();
+  const lastBiz = lastBusinessDayOfMonth(currentYear, currentMonth);
+  const lastBizD = parseDate(lastBiz);
+  const diffLastBiz = Math.round((lastBizD - today) / 86400000);
+
+  const thisMonthClose = loans.filter(l => {
+    const d = l['f-close-est'] || l['f-close-actual'];
+    if (!d) return false;
+    const pd = parseDate(d);
+    return pd.getMonth() === currentMonth && pd.getFullYear() === currentYear;
+  });
+
+  const ctcDue = loans.filter(l => {
+    const d = l['f-ctc-est'] || l['f-ctc'];
+    if (!d) return false;
+    const pd = parseDate(d);
+    return pd.getMonth() === currentMonth && pd.getFullYear() === currentYear;
+  });
+
+  document.getElementById('month-deadlines').innerHTML = `
+    <div style="background:var(--surface);border:1px solid ${diffLastBiz <= 5 ? 'var(--gold-border)' : 'var(--border)'};border-radius:var(--radius-lg);padding:14px 16px;${diffLastBiz <= 5 ? 'background:var(--gold-bg)' : ''}">
+      <div style="font-size:10.5px;font-weight:600;letter-spacing:.08em;text-transform:uppercase;color:var(--text3);margin-bottom:6px">Last Day to Close</div>
+      <div style="font-family:var(--serif);font-size:20px;color:var(--text)">${fmtDate(lastBiz)}</div>
+      <div style="font-size:12px;color:var(--text3);margin-top:4px">${diffLastBiz} days away</div>
+    </div>
+    <div style="background:var(--surface);border:1px solid var(--border);border-radius:var(--radius-lg);padding:14px 16px">
+      <div style="font-size:10.5px;font-weight:600;letter-spacing:.08em;text-transform:uppercase;color:var(--text3);margin-bottom:6px">Closings This Month</div>
+      <div style="font-family:var(--serif);font-size:20px;color:var(--text)">${thisMonthClose.length} file${thisMonthClose.length !== 1 ? 's' : ''}</div>
+      <div style="font-size:12px;color:var(--text3);margin-top:4px">${thisMonthClose.map(l => l['f-name']).join(', ') || 'None scheduled'}</div>
+    </div>
+    <div style="background:var(--surface);border:1px solid var(--border);border-radius:var(--radius-lg);padding:14px 16px">
+      <div style="font-size:10.5px;font-weight:600;letter-spacing:.08em;text-transform:uppercase;color:var(--text3);margin-bottom:6px">CTCs This Month</div>
+      <div style="font-family:var(--serif);font-size:20px;color:var(--text)">${ctcDue.length} file${ctcDue.length !== 1 ? 's' : ''}</div>
+      <div style="font-size:12px;color:var(--text3);margin-top:4px">${ctcDue.map(l => l['f-name']).join(', ') || 'None yet'}</div>
+    </div>`;
+}
+
+function selectLoan(id) {
+  const loan = loans.find(l => l.id === id);
+  if (!loan) return;
+
+  document.querySelectorAll('.loan-card').forEach(c => c.classList.remove('active'));
+  const card = document.getElementById('lc-'+id);
+  if (card) card.classList.add('active');
+
+  const detail = document.getElementById('file-detail');
+  detail.classList.add('visible');
+
+  const dateFields = [
+    { key:'f-app-date',     label:'Application Date',    warn:false },
+    { key:'f-le-deadline',  label:'LE Must Be Sent',     warn:true, urgDays:1 },
+    { key:'f-le-sent',      label:'LE Sent',             warn:false },
+    { key:'f-le-exp',       label:'LE Expires',          warn:true, urgDays:1 },
+    { key:'f-stp',          label:'STP Date',            warn:false },
+    { key:'f-awc-est',      label:'Est AWC',             warn:false, auto:true },
+    { key:'f-awc',          label:'Actual AWC',          warn:false },
+    { key:'f-ctc-est',      label:'Est CTC',             warn:false, auto:true },
+    { key:'f-ctc',          label:'Actual CTC',          warn:false },
+    { key:'f-lock-exp',     label:'Lock Expires',        warn:true, urgDays:7 },
+    { key:'f-cd-deadline',  label:'CD Signing Deadline', warn:true, urgDays:2, auto:true },
+    { key:'f-cd-signed',    label:'CD Signed',           warn:false },
+    { key:'f-close-est',    label:'Est Closing Date',    warn:false, auto:true },
+    { key:'f-close-actual', label:'Actual Close',        warn:false },
+    { key:'f-fund-est',     label:'Est Funding Date',    warn:false, auto:true },
+    { key:'f-fund-actual',  label:'Actual Funding',      warn:false },
+    { key:'f-last-day',     label:'Last Day to Close',   warn:true, urgDays:5 },
+    { key:'f-payoff-req',   label:'Payoff Requested',    warn:false },
+    { key:'f-payoff-exp',   label:'Payoff Expires',      warn:true, urgDays:5 },
+    { key:'f-title-ordered',label:'Title Ordered',       warn:false },
+    { key:'f-title-rcvd',   label:'Title Received',      warn:false },
+    { key:'f-appr-ordered', label:'Appraisal Ordered',   warn:false },
+    { key:'f-appr-date',    label:'Appraisal Date',      warn:false },
+    { key:'f-appr-due',     label:'Appr Report Due',     warn:true, urgDays:2 },
+    { key:'f-appr-rcvd',    label:'Appraisal Received',  warn:false },
+    { key:'f-wdiir',        label:'WDIIR Inspection',    warn:false },
+    { key:'f-wdiir-due',    label:'WDIIR Report Due',    warn:true, urgDays:2 },
+    { key:'f-hoi',          label:'HOI Confirmed',       warn:false },
+    { key:'f-flood-ordered',label:'Flood Cert Ordered',  warn:false },
+    { key:'f-flood-rcvd',   label:'Flood Cert Received', warn:false },
+    { key:'f-survey-ordered',label:'Survey Ordered',     warn:false },
+  ];
+
+  // Countdown strip — key urgent dates
+  const countdownKeys = [
+    { key:'f-lock-exp',    label:'Lock Exp', urgDays:7 },
+    { key:'f-payoff-exp',  label:'Payoff Exp', urgDays:5 },
+    { key:'f-cd-deadline', label:'CD Deadline', urgDays:3 },
+    { key:'f-close-est',   label:'Est Close', urgDays:7 },
+  ];
+
+  const countdownHTML = countdownKeys.map(ck => {
+    const val = loan[ck.key];
+    if (!val) return '';
+    const diff = daysDiff(val);
+    const cls = diff < 0 ? 'urgent' : diff <= ck.urgDays ? 'warn' : 'ok';
+    return `<div class="countdown-card ${cls}">
+      <div class="countdown-num">${diff < 0 ? Math.abs(diff)+'d ago' : diff+'d'}</div>
+      <div class="countdown-label">${ck.label}</div>
+    </div>`;
+  }).filter(Boolean).join('');
+
+  const dateRowsHTML = dateFields.map(f => {
+    const val = loan[f.key];
+    if (!val) return '';
+    const diff = daysDiff(val);
+    let rowCls = '', badgeHTML = '';
+    if (f.warn && diff !== null) {
+      if (diff < 0) { rowCls = 'overdue'; badgeHTML = `<span class="date-row-badge badge-red">${Math.abs(diff)}d overdue</span>`; }
+      else if (diff <= (f.urgDays || 3)) { rowCls = 'urgent'; badgeHTML = `<span class="date-row-badge badge-orange">${diff}d left</span>`; }
+      else badgeHTML = `<span class="date-row-badge badge-green">${diff}d</span>`;
+    }
+    if (f.auto) badgeHTML += `<span class="date-row-badge badge-auto">auto</span>`;
+    return `<div class="date-row ${rowCls}">
+      <span class="date-row-label">${f.label}</span>
+      <span style="display:flex;align-items:center;gap:4px"><span class="date-row-val">${fmtDate(val)}</span>${badgeHTML}</span>
+    </div>`;
+  }).filter(Boolean).join('');
+
+  detail.innerHTML = `
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:14px;margin-top:8px">
+      <div style="font-family:var(--serif);font-size:18px">${loan['f-name'] || 'Unnamed'}</div>
+      <button class="btn" onclick="editLoan('${loan.id}')">Edit File</button>
+    </div>
+    ${countdownHTML ? `<div class="countdown-strip">${countdownHTML}</div>` : ''}
+    <div class="file-dates-grid">${dateRowsHTML || '<div style="font-size:13px;color:var(--text3);padding:8px 0">No dates entered yet.</div>'}</div>
+    ${loan['f-notes'] ? `<div style="margin-top:12px;background:var(--gold-bg);border:1px solid var(--gold-border);border-radius:var(--radius);padding:12px;font-size:13px;line-height:1.6;color:var(--text2)"><strong style="font-size:10.5px;letter-spacing:.08em;text-transform:uppercase;color:var(--text3)">Notes</strong><br><br>${loan['f-notes']}</div>` : ''}
+  `;
+}
+
+// ─── MODAL ────────────────────────────────────────────────────────────────────
+function openModal(loan = null) {
+  editingId = loan ? loan.id : null;
+  document.getElementById('modal-title').textContent = loan ? 'Edit Loan File' : 'Add Loan File';
+
+  // Clear all fields
+  const fields = ['f-name','f-loannum','f-state','f-notes','f-app-date','f-le-sent','f-le-exp','f-le-deadline','f-stp','f-awc-est','f-awc','f-ctc-est','f-ctc','f-lock-exp','f-cd-signed','f-cd-deadline','f-close-est','f-close-actual','f-fund-est','f-fund-actual','f-last-day','f-payoff-req','f-payoff-exp','f-title-ordered','f-title-rcvd','f-appr-ordered','f-appr-date','f-appr-due','f-appr-rcvd','f-wdiir','f-wdiir-due','f-hoi','f-flood-ordered','f-flood-rcvd','f-survey-ordered'];
+  fields.forEach(id => { const el = document.getElementById(id); if (el) el.value = loan ? (loan[id] || '') : ''; });
+  if (!loan) document.getElementById('f-status').value = 'app';
+  else document.getElementById('f-status').value = loan['f-status'] || 'app';
+
+  document.getElementById('modal').classList.add('open');
+}
+
+function editLoan(id) {
+  const loan = loans.find(l => l.id === id);
+  if (loan) openModal(loan);
+}
+
+function closeModal() {
+  document.getElementById('modal').classList.remove('open');
+  editingId = null;
+}
+
+async function saveLoan() {
+  const fields = ['f-name','f-loannum','f-state','f-status','f-notes','f-app-date','f-le-sent','f-le-exp','f-le-deadline','f-stp','f-awc-est','f-awc','f-ctc-est','f-ctc','f-lock-exp','f-cd-signed','f-cd-deadline','f-close-est','f-close-actual','f-fund-est','f-fund-actual','f-last-day','f-payoff-req','f-payoff-exp','f-title-ordered','f-title-rcvd','f-appr-ordered','f-appr-date','f-appr-due','f-appr-rcvd','f-wdiir','f-wdiir-due','f-hoi','f-flood-ordered','f-flood-rcvd','f-survey-ordered'];
+  const loan = {};
+  fields.forEach(id => { const el = document.getElementById(id); if (el) loan[id] = el.value; });
+  if (editingId) loan.id = editingId;
+
+  try {
+    await apiSave(loan);
+    closeModal();
+    await refreshLoans();
+  } catch (e) {
+    alert('Could not save — check your Netlify deployment. Error: ' + e.message);
+  }
+}
+
+async function deleteLoan(id) {
+  if (!confirm('Remove this file from the calendar?')) return;
+  await apiDelete(id);
+  loans = loans.filter(l => l.id !== id);
+  document.getElementById('file-detail').classList.remove('visible');
+  renderAll();
+}
+
+function changeMonth(dir) {
+  if (dir === 0) { currentYear = new Date().getFullYear(); currentMonth = new Date().getMonth(); }
+  else {
+    currentMonth += dir;
+    if (currentMonth > 11) { currentMonth = 0; currentYear++; }
+    if (currentMonth < 0)  { currentMonth = 11; currentYear--; }
+  }
+  selectedDay = null;
+  document.getElementById('day-detail').classList.remove('visible');
+  renderAll();
+}
+
+// ─── INIT ─────────────────────────────────────────────────────────────────────
+document.getElementById('modal').addEventListener('click', e => { if (e.target === document.getElementById('modal')) closeModal(); });
+refreshLoans();
+</script>
+</body>
+</html>
